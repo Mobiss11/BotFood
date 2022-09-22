@@ -3,10 +3,11 @@ import logging
 import os
 import datetime
 
-from bot_helper import is_new_user, is_phone_valid
+from bot_helper import is_new_user, is_phone_valid, users
 from dotenv import load_dotenv
+from pathlib import Path
 from recipes import recipe_text
-from telegram import Update, InlineKeyboardButton, InlineKeyboardMarkup
+from telegram import Update, InlineKeyboardButton, InlineKeyboardMarkup, InputMediaPhoto
 from telegram.ext import (
     Updater,
     CommandHandler,
@@ -35,7 +36,9 @@ REGISTRATION, MENU, RECIPE = range(3)
     START_OVER,
     LIKE,
     DISLIKE,
-) = range(9)
+    BACK,
+    NEXT,
+) = range(11)
 
 END = ConversationHandler.END
 
@@ -88,8 +91,10 @@ def ask_for_phone(update, context):
 def save_phone(update: Update, context: Context):
     phone_number = update.message.text
     if is_phone_valid(phone_number):
+        users.append(update.effective_user.id)
         return menu(update, context)
     context.bot.send_message(chat_id=update.effective_chat.id, text=f"Your phone number is not valid, please try again")
+    
     return ask_for_phone(update, context)
 
 
@@ -119,10 +124,15 @@ def choose_recipe(update, context):
         ]
     ]
     reply_markup = InlineKeyboardMarkup(keyboard)
-
-    query.edit_message_text(
-        text=text, reply_markup=reply_markup, parse_mode='HTML'
-    )
+    with open(Path.cwd() / 'images' / 'rid_2.jpg', 'rb') as file:
+        query.message.edit_media(
+            media=InputMediaPhoto(
+                media=file,
+                caption=text[:1024]
+            ),
+            reply_markup=reply_markup,
+            parse_mode='HTML'
+            )
 
     return RECIPE
 
@@ -135,15 +145,44 @@ def dislike_recipe(update: Update, context: Context) -> int:
     return choose_recipe(update, context)
 
 
-def stop(update, context):
-    update.callback_query.answer()
-    update.callback_query.edit_message_text(text="Всего хорошего!")
+def favorite_recipes(update, context):
+    text = f"{recipe_text}\n\n({datetime.datetime.now()})"
+    query = update.callback_query
+    query.answer()
+    keyboard = [
+        [
+            InlineKeyboardButton("⬅ Предыдуший", callback_data=str(BACK)),
+            InlineKeyboardButton("Следующий ➡", callback_data=str(NEXT)),
+        ],
+        [
+            InlineKeyboardButton("🍲 Все рецепты", callback_data=str(CHOOSE_RECIPE)),
+        ]
+    ]
+    reply_markup = InlineKeyboardMarkup(keyboard)
+
+    with open(Path.cwd() / 'images' / 'rid_2.jpg', 'rb') as file:
+        query.message.edit_media(
+            media=InputMediaPhoto(
+                media=file,
+                caption=text[:1024]
+            ),
+            reply_markup=reply_markup,
+            parse_mode='HTML'
+            )
+
+    return RECIPE
+
+
+def next_recipe(update: Update, context: Context) -> int:
     return END
 
 
-def saved_recipes(update, context):
-    context.bot.send_message(chat_id=update.effective_chat.id, text=f"Your recipes")
+def previous_recipe(update: Update, context: Context) -> int:
+    return END
 
+
+def stop(update, context):
+    update.message.reply_text('До новых встреч!')
     return END
 
 
@@ -163,12 +202,15 @@ def main() -> None:
             MENU: [
                 CallbackQueryHandler(start, pattern='^' + str(END) + '$'),
                 CallbackQueryHandler(choose_recipe, pattern='^' + str(CHOOSE_RECIPE) + '$'),
-                CallbackQueryHandler(saved_recipes, pattern='^' + str(FAVORITE_RECIPES) + '$'),
+                CallbackQueryHandler(favorite_recipes, pattern='^' + str(FAVORITE_RECIPES) + '$'),
                 ],
             RECIPE: [
                 CallbackQueryHandler(like_recipe, pattern='^' + str(LIKE) + '$'),
                 CallbackQueryHandler(dislike_recipe, pattern='^' + str(DISLIKE) + '$'),
-                CallbackQueryHandler(saved_recipes, pattern='^' + str(FAVORITE_RECIPES) + '$'),
+                CallbackQueryHandler(favorite_recipes, pattern='^' + str(FAVORITE_RECIPES) + '$'),
+                CallbackQueryHandler(choose_recipe, pattern='^' + str(CHOOSE_RECIPE) + '$'),
+                CallbackQueryHandler(next_recipe, pattern='^' + str(NEXT) + '$'),
+                CallbackQueryHandler(previous_recipe, pattern='^' + str(BACK) + '$'),
                 ],
             TYPING: [MessageHandler(Filters.text & ~Filters.command, save_phone)],
         },
@@ -176,7 +218,11 @@ def main() -> None:
     )
     dispatcher.add_handler(conv_handler)
 
-    updater.start_polling()
+    updater.start_webhook(listen="0.0.0.0",
+                        port=int(os.environ.get('PORT', 5000)),
+                        url_path=os.getenv('TG_BOT_TOKEN'),
+                        webhook_url= 'https://telegram-food-bot-dev.herokuapp.com/' + os.getenv('TG_BOT_TOKEN')
+                        )
     updater.idle()
 
 

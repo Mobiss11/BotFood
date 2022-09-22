@@ -1,8 +1,6 @@
 import re
 
 users = [
-    29292,
-    1882690414,
     ]
 
 def is_new_user(user_id: int) -> bool:
