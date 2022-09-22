@@ -93,7 +93,7 @@ def save_phone(update: Update, context: Context):
     if is_phone_valid(phone_number):
         users.append(update.effective_user.id)
         return menu(update, context)
-    context.bot.send_message(chat_id=update.effective_chat.id, text=f"Your phone number is not valid, please try again")
+    context.bot.send_message(chat_id=update.effective_chat.id, text="Вы ввели не валидный номер телефона. Попробуйте еще.")
     
     return ask_for_phone(update, context)
 
@@ -125,14 +125,7 @@ def choose_recipe(update, context):
     ]
     reply_markup = InlineKeyboardMarkup(keyboard)
     with open(Path.cwd() / 'images' / 'rid_2.jpg', 'rb') as file:
-        query.message.edit_media(
-            media=InputMediaPhoto(
-                media=file,
-                caption=text[:1024]
-            ),
-            reply_markup=reply_markup,
-            parse_mode='HTML'
-            )
+        context.bot.send_photo(chat_id=update.effective_chat.id, photo=file, caption=text[:1024], reply_markup=reply_markup)
 
     return RECIPE
 
@@ -160,15 +153,8 @@ def favorite_recipes(update, context):
     ]
     reply_markup = InlineKeyboardMarkup(keyboard)
 
-    with open(Path.cwd() / 'images' / 'rid_2.jpg', 'rb') as file:
-        query.message.edit_media(
-            media=InputMediaPhoto(
-                media=file,
-                caption=text[:1024]
-            ),
-            reply_markup=reply_markup,
-            parse_mode='HTML'
-            )
+    with open(Path.cwd() / 'images' / 'rid_3.jpg', 'rb') as file:
+        context.bot.send_photo(chat_id=update.effective_chat.id, photo=file, caption=text[:1024], reply_markup=reply_markup)
 
     return RECIPE
 
@@ -218,11 +204,15 @@ def main() -> None:
     )
     dispatcher.add_handler(conv_handler)
 
-    updater.start_webhook(listen="0.0.0.0",
-                        port=int(os.environ.get('PORT', 5000)),
-                        url_path=os.getenv('TG_BOT_TOKEN'),
-                        webhook_url= 'https://telegram-food-bot-dev.herokuapp.com/' + os.getenv('TG_BOT_TOKEN')
-                        )
+    if os.getenv('ENVIRONMENT') in ('PRODUCTION', 'UAT'):
+        updater.start_webhook(listen="0.0.0.0",
+                            port=int(os.environ.get('PORT', 5000)),
+                            url_path=os.getenv('TG_BOT_TOKEN'),
+                            webhook_url= 'https://telegram-food-bot-dev.herokuapp.com/' + os.getenv('TG_BOT_TOKEN')
+                            )
+    else:
+        updater.start_polling()
+
     updater.idle()
 
 
