@@ -2,11 +2,11 @@
 
 To start with TG Bot do the following.
 
-## Make sure Python 3 is installed
+### Make sure Python 3 is installed
 
-## Set up a virtual environment, settings and install dependencies
+### Set up a virtual environment, settings and install dependencies
 
-### Settings
+#### Settings
 
 Create file .env with key TG_BOT_TOKEN.
 
@@ -14,9 +14,9 @@ Create file .env with key TG_BOT_TOKEN.
 TG_BOT_TOKEN='your_token_from_BotFather'
 ```
 
-### Virtual  environment example
+#### Virtual  environment example
 
-### Install dependencies
+#### Install dependencies
 
 ```bash
 pip install -r requirements
