@@ -50,7 +50,7 @@ def start(update: Update, context: Context) -> int:
     return menu(update, context)
 
 
-def policy_acceptance(update, context):
+def policy_acceptance(update: Update, context: Context) -> int:
     text=f"Для начала работы с рецептами необходимо принять <a href=\"https://example.com/\">пользовательское соглашение</a> на обрботку и хранение персональных данных."
     keyboard = [
         [
@@ -69,26 +69,26 @@ def policy_acceptance(update, context):
     return REGISTRATION
 
 
-def accept_policy(update, context):
+def accept_policy(update: Update, context: Context) -> int:
     query = update.callback_query
     query.answer()
     logging.info(f'User ID: {update.effective_user.id} - accepted a policy')
     return ask_for_phone(update, context)
 
 
-def decline_policy(update, context):
+def decline_policy(update: Update, context: Context) -> int:
     context.user_data[START_OVER] = True
     logging.info(f'User ID: {update.effective_user.id} - declined a policy')
     return  policy_acceptance(update, context) 
 
 
-def ask_for_phone(update, context):
+def ask_for_phone(update: Update, context: Context) -> int:
     update.callback_query.answer()
     update.callback_query.edit_message_text(text="Ваш номер телефона?")
     return TYPING
 
 
-def save_phone(update: Update, context: Context):
+def save_phone(update: Update, context: Context) -> int:
     phone_number = update.message.text
     if is_phone_valid(phone_number):
         users.append(update.effective_user.id)
@@ -98,7 +98,7 @@ def save_phone(update: Update, context: Context):
     return ask_for_phone(update, context)
 
 
-def menu(update: Update, context: Context):
+def menu(update: Update, context: Context) -> int:
     keyboard = [
         [
             InlineKeyboardButton("Посмотреть рецепты", callback_data=str(CHOOSE_RECIPE)),
@@ -106,14 +106,14 @@ def menu(update: Update, context: Context):
         ]
     ]
     reply_markup = InlineKeyboardMarkup(keyboard)
+    print('menu - Update \n',update)
+    print('menu - Update message\n', update.message)
     update.message.reply_text(text="Выберите, что будем делать дальше:", reply_markup=reply_markup)
     return MENU
 
 
-def choose_recipe(update, context):
+def choose_recipe(update: Update, context: Context) -> int:
     text = f"{recipe_text}\n\n({datetime.datetime.now()})"
-    query = update.callback_query
-    query.answer()
     keyboard = [
         [
             InlineKeyboardButton("👍 Нравится", callback_data=str(LIKE)),
@@ -124,9 +124,9 @@ def choose_recipe(update, context):
         ]
     ]
     reply_markup = InlineKeyboardMarkup(keyboard)
-    with open(Path.cwd() / 'images' / 'rid_2.jpg', 'rb') as file:
-        context.bot.send_photo(chat_id=update.effective_chat.id, photo=file, caption=text[:1024], reply_markup=reply_markup)
-
+    print('recipe - Update \n',update)
+    print('recipe - Update message\n', update.message)
+    update.callback_query.message.edit_text(text=text, reply_markup=reply_markup, parse_mode='HTML', disable_web_page_preview=False)
     return RECIPE
 
 
@@ -138,7 +138,7 @@ def dislike_recipe(update: Update, context: Context) -> int:
     return choose_recipe(update, context)
 
 
-def favorite_recipes(update, context):
+def favorite_recipes(update: Update, context: Context) -> int:
     text = f"{recipe_text}\n\n({datetime.datetime.now()})"
     query = update.callback_query
     query.answer()
@@ -152,10 +152,8 @@ def favorite_recipes(update, context):
         ]
     ]
     reply_markup = InlineKeyboardMarkup(keyboard)
-
-    with open(Path.cwd() / 'images' / 'rid_3.jpg', 'rb') as file:
-        context.bot.send_photo(chat_id=update.effective_chat.id, photo=file, caption=text[:1024], reply_markup=reply_markup)
-
+    update.callback_query.message.edit_text(text=text, reply_markup=reply_markup, parse_mode='HTML', disable_web_page_preview=False)
+    
     return RECIPE
 
 
@@ -167,7 +165,7 @@ def previous_recipe(update: Update, context: Context) -> int:
     return END
 
 
-def stop(update, context):
+def stop(update: Update, context: Context) -> int:
     update.message.reply_text('До новых встреч!')
     return END
 
