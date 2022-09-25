@@ -51,6 +51,7 @@ def start(update: Update, context: Context) -> int:
         user.id = add_user(user)
     context.user_data['user'] = user
     context.user_data['total_fav_meals'] = get_favorite_total(user.id)
+    logging.info(f'User ID: {update.effective_user.id} - favorite total = {context.user_data['total_fav_meals']}')
     if not user.policy_accepted:
         return policy_acceptance(update, context)
     elif not user.phone_number:
@@ -96,6 +97,7 @@ def decline_policy(update: Update, context: Context) -> int:
 
 def ask_for_phone(update: Update, context: Context) -> int:
     text = "Введите Ваш номер телефона:"
+    logging.info(f'User ID: {update.effective_user.id} - ask a phone number')
     if context.user_data.get('instance') == MENU:
         context.bot.send_message(chat_id=update.effective_chat.id, text=text)
     else:
@@ -113,7 +115,7 @@ def save_phone(update: Update, context: Context) -> int:
         context.user_data['instance'] = RECIPE
         return menu(update, context)
     context.bot.send_message(chat_id=update.effective_chat.id, text="Вы ввели не валидный номер телефона. Попробуйте еще.")
-
+    logging.info(f'User ID: {update.effective_user.id} - wrong phone number{phone_number}')
     return ask_for_phone(update, context)
 
 
@@ -126,10 +128,12 @@ def menu(update: Update, context: Context) -> int:
     ]
     reply_markup = InlineKeyboardMarkup(keyboard)
     update.message.reply_text(text="Выберите, что будем делать дальше:", reply_markup=reply_markup)
+    logging.info(f'User ID: {update.effective_user.id} - in Menu')
     return MENU
 
 
 def load_meal(update: Update, context: Context) -> Meal:
+    logging.info(f'User ID: {update.effective_user.id} - uploading meal...')
     if not context.user_data.get('offset'):
         context.user_data['offset'] = 0
     if not context.user_data.get('meals'):
@@ -147,6 +151,7 @@ def load_meal(update: Update, context: Context) -> Meal:
 
 
 def load_favorite_meal(update: Update, context: Context) -> Meal:
+    logging.info(f'User ID: {update.effective_user.id} - uploading favorite meal...')
     if not context.user_data.get('fav_offset'):
         context.user_data['fav_offset'] = 0
     if context.user_data['fav_offset'] < 0:
@@ -168,6 +173,7 @@ def load_favorite_meal(update: Update, context: Context) -> Meal:
 
 
 def choose_recipe(update: Update, context: Context) -> int:
+    logging.info(f'User ID: {update.effective_user.id} - All Recipes')
     meal = load_meal(update, context)
     if meal:
         text = get_recipe(meal)
@@ -196,6 +202,7 @@ def choose_recipe(update: Update, context: Context) -> int:
 
 
 def favorite_recipes(update: Update, context: Context) -> int:
+    logging.info(f'User ID: {update.effective_user.id} - Favorite recipes')
     meal = load_favorite_meal(update, context)
     if meal:
         text = get_recipe(meal)
@@ -230,6 +237,7 @@ def favorite_recipes(update: Update, context: Context) -> int:
 
 
 def like_recipe(update: Update, context: Context) -> int:
+    logging.info(f'User ID: {update.effective_user.id} - like recipe')
     set_like(context.user_data['user'].id, context.user_data['current_meal'].id)
     if not context.user_data.get('total_fav_meals'):
         context.user_data['total_fav_meals'] = 1
@@ -242,21 +250,25 @@ def like_recipe(update: Update, context: Context) -> int:
 
 
 def dislike_recipe(update: Update, context: Context) -> int:
+    logging.info(f'User ID: {update.effective_user.id} - dislike recipe')
     set_like(context.user_data['user'].id, context.user_data['current_meal'].id, 'Dislike')
     return choose_recipe(update, context)
 
 
 def next_recipe(update: Update, context: Context) -> int:
+    logging.info(f'User ID: {update.effective_user.id} - next recipe')
     context.user_data['fav_offset'] += 1
     return favorite_recipes(update, context)
 
 
 def previous_recipe(update: Update, context: Context) -> int:
+    logging.info(f'User ID: {update.effective_user.id} - previous recipe')
     context.user_data['fav_offset'] -= 1
     return favorite_recipes(update, context)
 
 
 def stop(update: Update, context: Context) -> int:
+    logging.info(f'User ID: {update.effective_user.id} - stop commend received')
     update.message.reply_text('До новых встреч!')
     return END
 
