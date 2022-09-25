@@ -51,7 +51,7 @@ def start(update: Update, context: Context) -> int:
         user.id = add_user(user)
     context.user_data['user'] = user
     context.user_data['total_fav_meals'] = get_favorite_total(user.id)
-    logging.info(f'User ID: {update.effective_user.id} - favorite total = {context.user_data['total_fav_meals']}')
+    logging.info(f"User ID: {update.effective_user.id} - favorite total = {context.user_data['total_fav_meals']}")
     if not user.policy_accepted:
         return policy_acceptance(update, context)
     elif not user.phone_number:
