@@ -25,11 +25,11 @@ logger = logging.getLogger(__name__)
 
 REGISTRATION, MENU, RECIPE = range(3)
 (
-    CHOOSE_RECIPE, 
-    FAVORITE_RECIPES, 
-    PAYMENT, 
-    TYPING, 
-    ACCEPT, 
+    CHOOSE_RECIPE,
+    FAVORITE_RECIPES,
+    PAYMENT,
+    TYPING,
+    ACCEPT,
     DECLINE,
     START_OVER,
     LIKE,
@@ -45,21 +45,21 @@ MAX_FREE_LIKES = 3
 def start(update: Update, context: Context) -> int:
     logging.info(f'User ID: {update.effective_user.id}')
     user = get_user(update.effective_user.id)
-    
+
     if not user:
         user = User(id=None, user_id=update.effective_user.id)
         user.id = add_user(user)
     context.user_data['user'] = user
     context.user_data['total_fav_meals'] = get_favorite_total(user.id)
     if not user.policy_accepted:
-        return policy_acceptance(update, context)   
+        return policy_acceptance(update, context)
     elif not user.phone_number:
         context.user_data['instance'] = MENU
         return ask_for_phone(update, context)
-    return menu(update, context) 
+    return menu(update, context)
 
 
-def policy_acceptance(update, context):
+def policy_acceptance(update: Update, context: Context) -> int:
     text = f"Для начала работы с рецептами необходимо принять <a href=\"{os.getenv('POLICY_ADDRESS')}\">\
 пользовательское соглашение</a> на обрботку и хранение персональных данных."
     keyboard = [
@@ -69,7 +69,7 @@ def policy_acceptance(update, context):
         ]
     ]
     reply_markup = InlineKeyboardMarkup(keyboard)
-    
+
     if context.user_data.get(START_OVER):
         update.callback_query.answer()
     else:
@@ -79,7 +79,7 @@ def policy_acceptance(update, context):
     return REGISTRATION
 
 
-def accept_policy(update, context):
+def accept_policy(update: Update, context: Context) -> int:
     query = update.callback_query
     query.answer()
     logging.info(f'User ID: {update.effective_user.id} - accepted a policy')
@@ -88,24 +88,24 @@ def accept_policy(update, context):
     return ask_for_phone(update, context)
 
 
-def decline_policy(update, context):
+def decline_policy(update: Update, context: Context) -> int:
     context.user_data[START_OVER] = True
     logging.info(f'User ID: {update.effective_user.id} - declined a policy')
-    return policy_acceptance(update, context) 
+    return policy_acceptance(update, context)
 
 
-def ask_for_phone(update, context):
+def ask_for_phone(update: Update, context: Context) -> int:
     text = "Введите Ваш номер телефона:"
     if context.user_data.get('instance') == MENU:
         context.bot.send_message(chat_id=update.effective_chat.id, text=text)
     else:
         update.callback_query.answer()
         update.callback_query.edit_message_text(text=text)
-    
+
     return TYPING
 
 
-def save_phone(update: Update, context: Context):
+def save_phone(update: Update, context: Context) -> int:
     phone_number = update.message.text
     if is_phone_valid(phone_number):
         context.user_data['user'].phone_number = phone_number
@@ -113,11 +113,11 @@ def save_phone(update: Update, context: Context):
         context.user_data['instance'] = RECIPE
         return menu(update, context)
     context.bot.send_message(chat_id=update.effective_chat.id, text="Вы ввели не валидный номер телефона. Попробуйте еще.")
-    
+
     return ask_for_phone(update, context)
 
 
-def menu(update: Update, context: Context):
+def menu(update: Update, context: Context) -> int:
     keyboard = [
         [
             InlineKeyboardButton("Посмотреть рецепты", callback_data=str(CHOOSE_RECIPE)),
@@ -132,7 +132,7 @@ def menu(update: Update, context: Context):
 def load_meal(update: Update, context: Context) -> Meal:
     if not context.user_data.get('offset'):
         context.user_data['offset'] = 0
-    if not context.user_data.get('meals'): 
+    if not context.user_data.get('meals'):
         context.user_data['meals'] = get_meals(context.user_data['user'], DB_LIMIT, context.user_data['offset'])
     if not context.user_data.get('meals') and context.user_data['offset'] > 0:
         context.user_data['offset'] = 0
@@ -148,14 +148,14 @@ def load_meal(update: Update, context: Context) -> Meal:
 
 def load_favorite_meal(update: Update, context: Context) -> Meal:
     if not context.user_data.get('fav_offset'):
-        context.user_data['fav_offset'] = 0   
+        context.user_data['fav_offset'] = 0
     if context.user_data['fav_offset'] < 0:
         context.user_data['fav_offset'] = 0
     offset = context.user_data['fav_offset']
     if not context.user_data.get('total_fav_meals'):
         context.user_data['total_fav_meals'] = get_favorite_total(context.user_data['user'].id)
     total = context.user_data['total_fav_meals']
-    if not context.user_data.get('fav_meals'): 
+    if not context.user_data.get('fav_meals'):
         context.user_data['fav_meals'] = get_meals(context.user_data['user'], DB_LIMIT, offset, is_favorite=True)
         if not context.user_data.get('fav_meals'):
             return None
@@ -167,7 +167,7 @@ def load_favorite_meal(update: Update, context: Context) -> Meal:
     return meal
 
 
-def choose_recipe(update, context):
+def choose_recipe(update: Update, context: Context) -> int:
     meal = load_meal(update, context)
     if meal:
         text = get_recipe(meal)
@@ -187,7 +187,7 @@ def choose_recipe(update, context):
             [
                 InlineKeyboardButton("💗 Мои рецепты", callback_data=str(FAVORITE_RECIPES)),
             ]
-        ]     
+        ]
     query = update.callback_query
     query.answer()
     reply_markup = InlineKeyboardMarkup(keyboard)
@@ -195,14 +195,14 @@ def choose_recipe(update, context):
     return RECIPE
 
 
-def favorite_recipes(update, context):
+def favorite_recipes(update: Update, context: Context) -> int:
     meal = load_favorite_meal(update, context)
     if meal:
         text = get_recipe(meal)
         keyboard = [
             [
                 InlineKeyboardButton("⬅ Предыдуший", callback_data=str(BACK)),
-                
+
             ],
             [
                 InlineKeyboardButton("🍲 Все рецепты", callback_data=str(CHOOSE_RECIPE)),
@@ -221,7 +221,7 @@ def favorite_recipes(update, context):
             [
                 InlineKeyboardButton("🍲 Все рецепты", callback_data=str(CHOOSE_RECIPE)),
             ]
-        ]       
+        ]
     query = update.callback_query
     query.answer()
     reply_markup = InlineKeyboardMarkup(keyboard)
@@ -232,7 +232,7 @@ def favorite_recipes(update, context):
 def like_recipe(update: Update, context: Context) -> int:
     set_like(context.user_data['user'].id, context.user_data['current_meal'].id)
     if not context.user_data.get('total_fav_meals'):
-        context.user_data['total_fav_meals'] = 1    
+        context.user_data['total_fav_meals'] = 1
     else:
         context.user_data['total_fav_meals'] += 1
     if not context.user_data.get('fav_meals'):
@@ -247,16 +247,16 @@ def dislike_recipe(update: Update, context: Context) -> int:
 
 
 def next_recipe(update: Update, context: Context) -> int:
-    context.user_data['fav_offset'] +=1
+    context.user_data['fav_offset'] += 1
     return favorite_recipes(update, context)
 
 
 def previous_recipe(update: Update, context: Context) -> int:
-    context.user_data['fav_offset'] -=1
+    context.user_data['fav_offset'] -= 1
     return favorite_recipes(update, context)
 
 
-def stop(update, context):
+def stop(update: Update, context: Context) -> int:
     update.message.reply_text('До новых встреч!')
     return END
 
@@ -268,10 +268,8 @@ def main() -> None:
         entry_points=[CommandHandler('start', start)],
         states={
             REGISTRATION: [
-                
                 CallbackQueryHandler(accept_policy, pattern='^' + str(ACCEPT) + '$'),
                 CallbackQueryHandler(decline_policy, pattern='^' + str(DECLINE) + '$'),
-
                 ],
             MENU: [
                 CallbackQueryHandler(start, pattern='^' + str(END) + '$'),
@@ -294,10 +292,10 @@ def main() -> None:
 
     if os.getenv('ENVIRONMENT') in ('PRODUCTION', 'UAT'):
         updater.start_webhook(listen="0.0.0.0",
-                            port=int(os.environ.get('PORT', 5000)),
-                            url_path=os.getenv('TG_BOT_TOKEN'),
-                            webhook_url= 'https://telegram-food-bot-dev.herokuapp.com/' + os.getenv('TG_BOT_TOKEN')
-                            )
+                              port=int(os.environ.get('PORT', 5000)),
+                              url_path=os.getenv('TG_BOT_TOKEN'),
+                              webhook_url='https://telegram-food-bot-dev.herokuapp.com/' + os.getenv('TG_BOT_TOKEN')
+                              )
     else:
         updater.start_polling()
 
