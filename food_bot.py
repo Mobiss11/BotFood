@@ -3,11 +3,13 @@ import logging
 import os
 import datetime
 
-from bot_helper import is_new_user, is_phone_valid, users
+from bot_helper import is_phone_valid, get_recipe
+from db_helper import add_user, update_user, get_user, get_meals, set_like, get_favorite_total
 from dotenv import load_dotenv
+from models import User, Meal
 from pathlib import Path
 from recipes import recipe_text
-from telegram import Update, InlineKeyboardButton, InlineKeyboardMarkup, InputMediaPhoto
+from telegram import Update, InlineKeyboardButton, InlineKeyboardMarkup, LabeledPrice
 from telegram.ext import (
     Updater,
     CommandHandler,
@@ -39,15 +41,26 @@ REGISTRATION, MENU, RECIPE = range(3)
     BACK,
     NEXT,
 ) = range(11)
-
 END = ConversationHandler.END
+DB_LIMIT = 3
+MAX_FREE_LIKES = 3
 
 
 def start(update: Update, context: Context) -> int:
     logging.info(f'User ID: {update.effective_user.id}')
-    if is_new_user(update.effective_user.id):
-        return policy_acceptance(update, context) 
-    return menu(update, context)
+    user = get_user(update.effective_user.id)
+    
+    if not user:
+        user = User(id=None, user_id=update.effective_user.id)
+        user.id = add_user(user)
+    context.user_data['user'] = user
+    context.user_data['total_fav_meals'] = get_favorite_total(user.id)
+    if not user.policy_accepted:
+        return policy_acceptance(update, context)   
+    elif not user.phone_number:
+        context.user_data['instance'] = MENU
+        return ask_for_phone(update, context)
+    return menu(update, context) 
 
 
 def policy_acceptance(update, context):
@@ -73,6 +86,8 @@ def accept_policy(update, context):
     query = update.callback_query
     query.answer()
     logging.info(f'User ID: {update.effective_user.id} - accepted a policy')
+    context.user_data['user'].policy_accepted = True
+    update_user(context.user_data['user'])
     return ask_for_phone(update, context)
 
 
@@ -83,15 +98,22 @@ def decline_policy(update, context):
 
 
 def ask_for_phone(update, context):
-    update.callback_query.answer()
-    update.callback_query.edit_message_text(text="Ваш номер телефона?")
+    text = "Введите Ваш номер телефона:"
+    if context.user_data.get('instance') == MENU:
+        context.bot.send_message(chat_id=update.effective_chat.id, text=text)
+    else:
+        update.callback_query.answer()
+        update.callback_query.edit_message_text(text=text)
+    
     return TYPING
 
 
 def save_phone(update: Update, context: Context):
     phone_number = update.message.text
     if is_phone_valid(phone_number):
-        users.append(update.effective_user.id)
+        context.user_data['user'].phone_number = phone_number
+        update_user(context.user_data['user'])
+        context.user_data['instance'] = RECIPE
         return menu(update, context)
     context.bot.send_message(chat_id=update.effective_chat.id, text="Вы ввели не валидный номер телефона. Попробуйте еще.")
     
@@ -110,61 +132,131 @@ def menu(update: Update, context: Context):
     return MENU
 
 
+def load_meal(update: Update, context: Context) -> Meal:
+    if not context.user_data.get('offset'):
+        context.user_data['offset'] = 0
+    if not context.user_data.get('meals'): 
+        context.user_data['meals'] = get_meals(context.user_data['user'], DB_LIMIT, context.user_data['offset'])
+    if not context.user_data.get('meals') and context.user_data['offset'] > 0:
+        context.user_data['offset'] = 0
+        return load_meal(update, context)
+    if not context.user_data.get('meals'):
+        return None
+    meal = context.user_data['meals'][0]
+    del context.user_data['meals'][0]
+    context.user_data['offset'] += 1
+    context.user_data['current_meal'] = meal
+    return meal
+
+
+def load_favorite_meal(update: Update, context: Context) -> Meal:
+    if not context.user_data.get('fav_offset'):
+        context.user_data['fav_offset'] = 0   
+    if context.user_data['fav_offset'] < 0:
+        context.user_data['fav_offset'] = 0
+    offset = context.user_data['fav_offset']
+    if not context.user_data.get('total_fav_meals'):
+        context.user_data['total_fav_meals'] = get_favorite_total(context.user_data['user'].id)
+    total = context.user_data['total_fav_meals']
+    if not context.user_data.get('fav_meals'): 
+        context.user_data['fav_meals'] = get_meals(context.user_data['user'], DB_LIMIT, offset, is_favorite=True)
+        if not context.user_data.get('fav_meals'):
+            return None
+    elif offset == len(context.user_data['fav_meals']) and offset < total:
+        context.user_data['fav_meals'] += get_meals(context.user_data['user'], DB_LIMIT, offset, is_favorite=True)
+    meal = context.user_data['fav_meals'][offset]
+    if offset + 1 == total:
+        context.user_data['fav_offset'] = -1
+    return meal
+
+
 def choose_recipe(update, context):
-    text = f"{recipe_text}\n\n({datetime.datetime.now()})"
+    meal = load_meal(update, context)
+    if meal:
+        text = get_recipe(meal)
+        keyboard = [
+            [
+                InlineKeyboardButton("👍 Нравится", callback_data=str(LIKE)),
+                InlineKeyboardButton("👎 Не нравится", callback_data=str(DISLIKE)),
+            ],
+            [
+                InlineKeyboardButton("💗 Мои рецепты", callback_data=str(FAVORITE_RECIPES)),
+            ]
+        ]
+        context.bot.send_photo(chat_id=update.effective_chat.id, photo=meal.image_url, caption=f"{meal.name}\n{meal.description}")
+    else:
+        text = "По Вашему запросу ничего не найдено."
+        keyboard = [
+            [
+                InlineKeyboardButton("💗 Мои рецепты", callback_data=str(FAVORITE_RECIPES)),
+            ]
+        ]     
     query = update.callback_query
     query.answer()
-    keyboard = [
-        [
-            InlineKeyboardButton("👍 Нравится", callback_data=str(LIKE)),
-            InlineKeyboardButton("👎 Не нравится", callback_data=str(DISLIKE)),
-        ],
-        [
-            InlineKeyboardButton("💗 Мои рецепты", callback_data=str(FAVORITE_RECIPES)),
-        ]
-    ]
     reply_markup = InlineKeyboardMarkup(keyboard)
-    with open(Path.cwd() / 'images' / 'rid_2.jpg', 'rb') as file:
-        context.bot.send_photo(chat_id=update.effective_chat.id, photo=file, caption=text[:1024], reply_markup=reply_markup)
+    context.bot.send_message(chat_id=update.effective_chat.id, text=text, reply_markup=reply_markup)
+    return RECIPE
 
+
+def favorite_recipes(update, context):
+    meal = load_favorite_meal(update, context)
+    if meal:
+        text = get_recipe(meal)
+        keyboard = [
+            [
+                InlineKeyboardButton("⬅ Предыдуший", callback_data=str(BACK)),
+                
+            ],
+            [
+                InlineKeyboardButton("🍲 Все рецепты", callback_data=str(CHOOSE_RECIPE)),
+            ]
+        ]
+        if context.user_data.get('fav_offset') is None or context.user_data.get('fav_offset') == 0:
+            del keyboard[0][0]
+        if context.user_data.get('fav_offset') == -1:
+            keyboard[0].append(InlineKeyboardButton("В начало 😋", callback_data=str(NEXT)))
+        else:
+            keyboard[0].append(InlineKeyboardButton("Следующий ➡", callback_data=str(NEXT)))
+        context.bot.send_photo(chat_id=update.effective_chat.id, photo=meal.image_url, caption=f"{meal.name}\n{meal.description}")
+    else:
+        text = "По Вашему запросу ничего не найдено."
+        keyboard = [
+            [
+                InlineKeyboardButton("🍲 Все рецепты", callback_data=str(CHOOSE_RECIPE)),
+            ]
+        ]       
+    query = update.callback_query
+    query.answer()
+    reply_markup = InlineKeyboardMarkup(keyboard)
+    context.bot.send_message(chat_id=update.effective_chat.id, text=text, reply_markup=reply_markup)
     return RECIPE
 
 
 def like_recipe(update: Update, context: Context) -> int:
+    set_like(context.user_data['user'].id, context.user_data['current_meal'].id)
+    if not context.user_data.get('total_fav_meals'):
+        context.user_data['total_fav_meals'] = 1    
+    else:
+        context.user_data['total_fav_meals'] += 1
+    if not context.user_data.get('fav_meals'):
+        context.user_data['fav_meals'] = []
+    context.user_data['fav_meals'].append(context.user_data['current_meal'])
     return choose_recipe(update, context)
 
 
 def dislike_recipe(update: Update, context: Context) -> int:
+    set_like(context.user_data['user'].id, context.user_data['current_meal'].id, 'Dislike')
     return choose_recipe(update, context)
 
 
-def favorite_recipes(update, context):
-    text = f"{recipe_text}\n\n({datetime.datetime.now()})"
-    query = update.callback_query
-    query.answer()
-    keyboard = [
-        [
-            InlineKeyboardButton("⬅ Предыдуший", callback_data=str(BACK)),
-            InlineKeyboardButton("Следующий ➡", callback_data=str(NEXT)),
-        ],
-        [
-            InlineKeyboardButton("🍲 Все рецепты", callback_data=str(CHOOSE_RECIPE)),
-        ]
-    ]
-    reply_markup = InlineKeyboardMarkup(keyboard)
-
-    with open(Path.cwd() / 'images' / 'rid_3.jpg', 'rb') as file:
-        context.bot.send_photo(chat_id=update.effective_chat.id, photo=file, caption=text[:1024], reply_markup=reply_markup)
-
-    return RECIPE
-
-
 def next_recipe(update: Update, context: Context) -> int:
-    return END
+    context.user_data['fav_offset'] +=1
+    return favorite_recipes(update, context)
 
 
 def previous_recipe(update: Update, context: Context) -> int:
-    return END
+    context.user_data['fav_offset'] -=1
+    return favorite_recipes(update, context)
 
 
 def stop(update, context):
@@ -173,7 +265,6 @@ def stop(update, context):
 
 
 def main() -> None:
-    print('Main')
     updater = Updater(os.getenv('TG_BOT_TOKEN'))
     dispatcher = updater.dispatcher
     conv_handler = ConversationHandler(

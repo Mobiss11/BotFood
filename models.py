@@ -3,7 +3,8 @@ from turtle import title
 
 class User():
 
-    def __init__(self, user_id: int, user_name: str = None, policy_accepted:bool = False, phone_number:str = None) -> None:
+    def __init__(self, id: int, user_id: int, user_name: str = None, policy_accepted:bool = False, phone_number:str = None) -> None:
+        self.id = id
         self.user_id = user_id
         self.user_name = user_name
         self.policy_accepted = policy_accepted
