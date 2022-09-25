@@ -35,10 +35,10 @@ def get_user(telegram_user_id: int) -> User:
         for user_record in user_records:
             user = User(
                 id=user_record[0],
-                user_id = user_record[1],
-                user_name = user_record[2],
-                policy_accepted = user_record[3],
-                phone_number = user_record[4]
+                user_id=user_record[1],
+                user_name=user_record[2],
+                policy_accepted=user_record[3],
+                phone_number=user_record[4]
                 )
             break
         cur.close()
@@ -47,25 +47,23 @@ def get_user(telegram_user_id: int) -> User:
     finally:
         if connect is not None:
             connect.close()
-    return user    
+    return user
 
 
 def add_user(user: User) -> int:
     if get_user(user.user_id):
         return update_user(user)
-    id = None
     connect = None
     sql_user_name = f"'{user.user_name}'" if user.user_name else 'NULL'
     sql_phone_number = f"'{user.phone_number}'" if user.phone_number else 'NULL'
     sql = f"INSERT INTO public.telegram_user_profile \
     (telegram_user_id, telegram_user_name, policy_accepted, user_phone_number)\
     VALUES ({user.user_id}, {sql_user_name}, {user.policy_accepted}, {sql_phone_number})\
-    RETURNING id;"    
+    RETURNING id;"
     try:
         connect = connect_db()
         cur = connect.cursor()
         cur.execute(sql)
-        id = cur.fetchone()[0]
         connect.commit()
         cur.close()
     except (Exception, psycopg2.DatabaseError) as error:
@@ -76,7 +74,7 @@ def add_user(user: User) -> int:
     return user.id
 
 
-def update_user(user:User) -> int:
+def update_user(user: User) -> int:
     if not get_user(user.user_id):
         return add_user(user)
     connect = None
@@ -86,7 +84,7 @@ def update_user(user:User) -> int:
               set telegram_user_name = {sql_user_name}, \
                   policy_accepted = {user.policy_accepted}, \
                   user_phone_number = {sql_phone_number}\
-            WHERE telegram_user_id = {user.user_id};"  
+            WHERE telegram_user_id = {user.user_id};"
     try:
         connect = connect_db()
         cur = connect.cursor()
@@ -116,7 +114,7 @@ def get_ingredients(meal_id: int) -> list[Ingredient]:
         ingredient_records = cur.fetchall()
         for ingredient_record in ingredient_records:
             ingredient = Ingredient(
-                name=ingredient_record[0], 
+                name=ingredient_record[0],
                 amount=ingredient_record[1],
                 measure=ingredient_record[2])
             ingredients.append(ingredient)
@@ -145,8 +143,8 @@ def get_meals(user: User, limit: int = 10, offset: int = 0, is_favorite: bool = 
                                     from public.foodadminapp_likemeals lm \
                                     where lm.user_id = {user.id} \
                                       and \"like\" = 'Like' \
-                                      and lm.meal_id = fm.id )"      
-    else:  
+                                      and lm.meal_id = fm.id )"
+    else:
         sql += f"WHERE not exists (select 1 \
                                     from public.foodadminapp_likemeals lm \
                                     where lm.meal_id = fm.id \
@@ -181,7 +179,7 @@ def set_like(user_id, meal_id, like='Like'):
     sql = f"INSERT INTO public.foodadminapp_likemeals \
     (user_id, meal_id, \"like\")\
     VALUES ({user_id}, {meal_id}, '{like}')\
-    RETURNING user_id;"    
+    RETURNING user_id;"
     try:
         connect = connect_db()
         cur = connect.cursor()
@@ -198,7 +196,6 @@ def set_like(user_id, meal_id, like='Like'):
 
 
 def get_favorite_total(user_id):
-    ingredients = []
     sql = f"SELECT \
               count(*) \
             FROM public.foodadminapp_likemeals \

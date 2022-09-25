@@ -1,15 +1,12 @@
 from contextvars import Context
 import logging
 import os
-import datetime
 
 from bot_helper import is_phone_valid, get_recipe
 from db_helper import add_user, update_user, get_user, get_meals, set_like, get_favorite_total
 from dotenv import load_dotenv
 from models import User, Meal
-from pathlib import Path
-from recipes import recipe_text
-from telegram import Update, InlineKeyboardButton, InlineKeyboardMarkup, LabeledPrice
+from telegram import Update, InlineKeyboardButton, InlineKeyboardMarkup
 from telegram.ext import (
     Updater,
     CommandHandler,
@@ -17,7 +14,6 @@ from telegram.ext import (
     Filters,
     ConversationHandler,
     CallbackQueryHandler,
-    
 )
 
 
@@ -64,7 +60,8 @@ def start(update: Update, context: Context) -> int:
 
 
 def policy_acceptance(update, context):
-    text=f"Для начала работы с рецептами необходимо принять <a href=\"https://example.com/\">пользовательское соглашение</a> на обрботку и хранение персональных данных."
+    text = f"Для начала работы с рецептами необходимо принять <a href=\"{os.getenv('POLICY_ADDRESS')}\">\
+пользовательское соглашение</a> на обрботку и хранение персональных данных."
     keyboard = [
         [
             InlineKeyboardButton("Согласен", callback_data=str(ACCEPT)),
@@ -94,7 +91,7 @@ def accept_policy(update, context):
 def decline_policy(update, context):
     context.user_data[START_OVER] = True
     logging.info(f'User ID: {update.effective_user.id} - declined a policy')
-    return  policy_acceptance(update, context) 
+    return policy_acceptance(update, context) 
 
 
 def ask_for_phone(update, context):

@@ -4,10 +4,11 @@ from models import Meal
 
 
 def is_phone_valid(phone_number):
-    rgx_phone = re.compile("(?:\+?\(?\d{2,3}?\)?\D?)?\d{4}\D?\d{4}")
+    rgx_phone = re.compile("(?:+?(?d{2,3}?)?D?)?d{4}D?d{4}")
     if re.findall(rgx_phone, phone_number):
         return True
     return False
+
 
 def get_recipe(meal: Meal) -> str:
     recipe = f"{meal.name}\n\n"
